@@ -35,7 +35,7 @@ TODO:
 import sys, os, stat, syslog, daemon, signal, inspect
 import getpass, argparse, ConfigParser
 import unicodedata, re
-import email, email.utils, imaplib, pythonwhois
+import email, email.utils, socket, imaplib, pythonwhois
 from time import sleep
 from datetime import date, timedelta
 
@@ -70,6 +70,8 @@ class imapFilter():
         self.signalRaised = False
         self.pollTime = 60 # Default polling delay time in seconds
 
+        self.socketTimeout = 60 # Default timeout for socket communications.
+
         # Whois
         self.whois = False
         self.registrars = {} # cache
@@ -83,6 +85,9 @@ class imapFilter():
         # Assign a signal handler to exit gracefully
         signal.signal(signal.SIGINT, self.signalHandler)
         signal.signal(signal.SIGTERM, self.signalHandler)
+
+        # Set timeout for connections.
+        socket.setdefaulttimeout(self.socketTimeout)
 
         return
 
@@ -104,6 +109,9 @@ class imapFilter():
 
         if config.has_option('general', 'polltime'):
             self.polltime = config.getint('general', 'polltime')
+
+        if config.has_option('general', 'sockettimeout'):
+            self.socketTimeout = config.getint('general', 'sockettimeout')
 
     def setupConnections(self, config):
         """ Process the account section of the configuration file
@@ -283,8 +291,14 @@ class imapFilter():
             for acctName, acct in self.connections.items():
                 connection = acct[1]
                 if connection:
-                    connection.close()
-                    connection.logout()
+                    try:
+                        connection.close()
+                        connection.logout()
+                    except:
+                        e = sys.exc_info()
+                        syslog.syslog(syslog.LOG_WARNING, 'Close/Logout failure ' + rule['account'] + ' ' + str(e))
+                    finally:
+                        pass
         return
 
     def contains(self, headers, field, test, nocase):
