@@ -562,6 +562,54 @@ class imapFilter():
                     return False
             else:
                 return False
+        return True
+
+    def markme(self, From, uid, toAcct, mark):
+        """Action to mark an email
+
+        Args:
+            From (imaplib.IMAP4_SSL): Connection to account
+            uid (int): message ID
+            toAcct (str): Account name for email destination (ignored)
+            mark (str): Flag to set
+        """
+        syslog.syslog(syslog.LOG_INFO, 'Action: ' + inspect.stack()[0][3] +
+                      ' message ' + ' ' + str(uid) +
+                      ' mark ' + ' ' + mark)
+        try:
+            resp, data = From.uid('store', uid, '+FLAGS', '(' + mark + ')')
+        except:
+            e = sys.exc_info()
+            syslog.syslog(syslog.LOG_ERR, 'Action: ' + inspect.stack()[0][3] +
+                          ' from ' + ' ' + str(uid) +
+                          ' mark ' + ' ' + mark)
+            syslog.syslog(syslog.LOG_ERR, 'Message mark failed' + e[0][0] + ' ' + str(e))
+            return False
+        return True
+
+    def unmarkme(self, From, uid, toAcct, mark):
+        """Action to mark an email
+
+        Args:
+            From (imaplib.IMAP4_SSL): Connection to account
+            uid (int): message ID
+            toAcct (str): Account name for email destination (ignored)
+            mark (str): Flag to unset
+        """
+        syslog.syslog(syslog.LOG_INFO, 'Action: ' + inspect.stack()[0][3] +
+                      ' message ' + ' ' + str(uid) +
+                      ' unmark ' + ' ' + mark)
+
+        try:
+            resp, data = From.uid('store', uid, '-FLAGS', '(' + mark + ')')
+        except:
+            e = sys.exc_info()
+            syslog.syslog(syslog.LOG_ERR, 'Action: ' + inspect.stack()[0][3] +
+                          ' from ' + ' ' + str(uid) +
+                          ' mark ' + ' ' + mark)
+            syslog.syslog(syslog.LOG_ERR, 'Message unmark failed' + e[0][0] + ' ' + str(e))
+            return False
+        return True
 
     def signalHandler(self, signum, frame):
         """ Capture signals and set the raised flag
@@ -598,6 +646,8 @@ def argParser():
         '-p', '--pidfile', type=str, help='Daemon mode Process ID file', default=False)
     parser.add_argument(
         '-1', '--once', action="store_true", help='Just run once', default=False)
+    parser.add_argument(
+        '-l', '--loadonly', action="store_true", help='Just load the config without running', default=False)
 
     return parser.parse_args()
 
@@ -628,6 +678,10 @@ if __name__ == '__main__':
 
     # Initialize email filtering from the configuration file
     emailFilter = imapFilter(config)
+
+    if commandLineOptions.loadonly:
+        print 'Load only.'
+        sys.exit(0);
 
     # Do we turn the service into a daemon?
     if commandLineOptions.daemon:
